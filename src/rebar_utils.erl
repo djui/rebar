@@ -433,10 +433,10 @@ vcs_vsn_cmd(git) ->
     case os:type() of
         {win32,nt} ->
             "FOR /F \"usebackq tokens=* delims=\" %i in "
-                "(`git log -n 1 \"--pretty=format:%h\" .`) do "
+                "(`git log -n 1 \"--pretty=format:%h\"`) do "
                 "@git describe --always --tags %i";
         _ ->
-            "git describe --always --tags `git log -n 1 --pretty=format:%h .`"
+            "git describe --always --tags `git log -n 1 --pretty=format:%h`"
     end;
 vcs_vsn_cmd(hg)  -> "hg identify -i";
 vcs_vsn_cmd(bzr) -> "bzr revno";
