@@ -71,6 +71,9 @@
 %% Same as erl_first_files, but used only when running 'eunit'
 {eunit_first_files, []}.
 
+%% A list of regexp patterns, used for excluding files from EUnit processing
+{eunit_exclude_patterns, []}.
+
 %% Whether to enable coverage reporting. Default is `false'
 {cover_enabled, false}.
 

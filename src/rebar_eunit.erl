@@ -49,6 +49,7 @@
 %% implementation, and for the unit tests, then the following
 %% <code>rebar.config</code> option can be provided:
 %% <code>{eunit_compile_opts, [{src_dirs, ["dir"]}]}.</code>.
+%% <code>{eunit_exclude_patterns, ["REGEXP","REGEXP", ...]}.</code>.
 %% @copyright 2009, 2010 Dave Smith
 %% -------------------------------------------------------------------
 -module(rebar_eunit).
@@ -107,13 +108,14 @@ eunit(Config, _AppFile) ->
     ok = rebar_file_utils:delete_each(lists:foldl(ToCleanUp, [], TestErls)),
     ok = rebar_file_utils:delete_each(lists:foldl(ToCleanUp, [], SrcErls)),
 
-    ok = rebar_file_utils:cp_r(SrcErls ++ TestErls, ?EUNIT_DIR),
+    TargetFiles = exclude(Config, SrcErls ++ TestErls),
+    ok = rebar_file_utils:cp_r(TargetFiles, ?EUNIT_DIR),
 
     %% Compile erlang code to ?EUNIT_DIR, using a tweaked config
     %% with appropriate defines for eunit, and include all the test modules
     %% as well.
     rebar_erlc_compiler:doterl_compile(eunit_config(Config),
-                                       ?EUNIT_DIR, TestErls),
+                                       ?EUNIT_DIR, exclude(Config,TestErls)),
 
     %% Build a list of all the .beams in ?EUNIT_DIR -- use this for
     %% cover and eunit testing. Normally you can just tell cover
@@ -621,3 +623,13 @@ pause_until_net_kernel_stopped(N) ->
             ?DEBUG("Stopped net kernel.\n", []),
             ok
     end.
+
+exclude(Config, ListOfStrings) ->
+    Patterns = rebar_config:get_list(Config, eunit_exclude_patterns, []),
+    do_exclude(ListOfStrings, Patterns).
+
+do_exclude(ListOfStrings, [])                 -> ListOfStrings;
+do_exclude(ListOfStrings, [Pattern|Patterns]) ->
+    do_exclude([S || S <- ListOfStrings,
+                     re:run(S, Pattern) == nomatch],
+               Patterns).
