@@ -231,7 +231,7 @@ write_reports(TestSuites, XmlDir) ->
 
 write_report(#testsuite{name = Name} = TestSuite, XmlDir) ->
     Filename = filename:join(XmlDir, lists:flatten([escape_suitename(Name), ".EUNIT"], ".xml")),
-    case file:open(Filename, [write, raw]) of
+    case file:open(Filename, [write,{encoding,utf8}]) of
         {ok, FileDescriptor} ->
             try
                 write_report_to(TestSuite, FileDescriptor)
