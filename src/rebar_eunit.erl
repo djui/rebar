@@ -415,16 +415,24 @@ cover_write_index_section(F, SectionName, Coverage) ->
                                                 {CAcc + C, NAcc + N}
                                         end, {0, 0}, Coverage),
     TotalCoverage = percentage(Covered, NotCovered),
+    TotalLines = Covered + NotCovered,
 
     %% Write the report
     ok = file:write(F, ?FMT("<body><h1>~s Summary</h1>\n", [SectionName])),
-    ok = file:write(F, ?FMT("<h3>Total: ~s</h3>\n", [TotalCoverage])),
-    ok = file:write(F, "<table><tr><th>Module</th><th>Coverage %</th></tr>\n"),
+    ok = file:write(F, ?FMT("<h3>Total: ~s (~p of ~p lines)</h3>\n",
+                            [TotalCoverage, Covered, TotalLines])),
+    ok = file:write(F, ("<table><tr><th>Module</th><th>Covered Lines</th>"
+                        "<th>Total Lines</th>"
+                        "<th>Coverage %</th></tr>\n")),
 
     FmtLink =
         fun(Module, Cov, NotCov) ->
-                ?FMT("<tr><td><a href='~s.COVER.html'>~s</a></td><td>~s</td>\n",
-                     [Module, Module, percentage(Cov, NotCov)])
+                ?FMT("<tr><td><a href='~s.COVER.html'>~s</a></td>"
+                     "<td align=\"right\">~w</th>"
+                     "<td align=\"right\">~w</th>"
+                     "<td align=\"right\">~s</td>\n",
+                     [Module, Module, Cov, Cov + NotCov,
+                      percentage(Cov, NotCov)])
         end,
     lists:foreach(fun({Module, Cov, NotCov}) ->
                           ok = file:write(F, FmtLink(Module, Cov, NotCov))
@@ -432,21 +440,29 @@ cover_write_index_section(F, SectionName, Coverage) ->
     ok = file:write(F, "</table>\n").
 
 cover_print_coverage(Coverage) ->
-    {_Covered, _TotalLines, TotalCoverage} =
+    {Covered, TotalLines, TotalCoverage} =
         calculate_coverage(Coverage),
 
     %% Determine the longest module name for right-padding
-    Width =
+    ModuleWidth =
         lists:foldl(fun({Mod, _C, _NC}, MAcc) ->
-                        max(length(atom_to_list(Mod)), MAcc)
+                            max(length(atom_to_list(Mod)), MAcc)
                     end, 0, Coverage),
+
+    CoveredWidth = length(integer_to_list(Covered)),
+    LineWidth    = length(integer_to_list(TotalLines)),
+
     %% Print the output the console
     ?CONSOLE("~nCode Coverage:~n", []),
     lists:foreach(fun({Mod, C, N}) ->
-                          ?CONSOLE("~*s : ~4s~n",
-                                   [Width, Mod, percentage(C, N)])
+                          ?CONSOLE("~*s : ~4s : ~*w : ~*w~n",
+                                   [-ModuleWidth, Mod, percentage(C, N)
+                                   , CoveredWidth, C
+                                   , LineWidth, C + N])
                   end, Coverage),
-    ?CONSOLE("~n~*s : ~4s~n", [Width, "Total", TotalCoverage]).
+    ?CONSOLE("~n~*s : ~4s : ~*w : ~*w~n",
+             [-ModuleWidth, "Total", TotalCoverage,
+              CoveredWidth, Covered, LineWidth, TotalLines]).
 
 cover_file(Module) ->
     filename:join([?EUNIT_DIR, atom_to_list(Module) ++ ".COVER.html"]).
