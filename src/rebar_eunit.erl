@@ -398,6 +398,15 @@ cover_write_index(Coverage, SrcModules) ->
     ok = file:write(F, "</body></html>"),
     ok = file:close(F).
 
+calculate_coverage(Coverage) ->
+    {Covered, NotCovered} =
+        lists:foldl(fun({_Mod, C, N}, {CAcc, NAcc}) ->
+                            {CAcc + C, NAcc + N}
+                    end, {0, 0}, Coverage),
+    TotalCoverage = percentage(Covered, NotCovered),
+    TotalLines = Covered + NotCovered,
+    {Covered, TotalLines, TotalCoverage}.
+
 cover_write_index_section(_F, _SectionName, []) ->
     ok;
 cover_write_index_section(F, SectionName, Coverage) ->
@@ -423,28 +432,21 @@ cover_write_index_section(F, SectionName, Coverage) ->
     ok = file:write(F, "</table>\n").
 
 cover_print_coverage(Coverage) ->
-    {Covered, NotCovered} = lists:foldl(fun({_Mod, C, N}, {CAcc, NAcc}) ->
-                                                {CAcc + C, NAcc + N}
-                                        end, {0, 0}, Coverage),
-    TotalCoverage = percentage(Covered, NotCovered),
+    {_Covered, _TotalLines, TotalCoverage} =
+        calculate_coverage(Coverage),
 
     %% Determine the longest module name for right-padding
-    Width = lists:foldl(fun({Mod, _, _}, Acc) ->
-                                case length(atom_to_list(Mod)) of
-                                    N when N > Acc ->
-                                        N;
-                                    _ ->
-                                        Acc
-                                end
-                        end, 0, Coverage) * -1,
-
+    Width =
+        lists:foldl(fun({Mod, _C, _NC}, MAcc) ->
+                        max(length(atom_to_list(Mod)), MAcc)
+                    end, 0, Coverage),
     %% Print the output the console
     ?CONSOLE("~nCode Coverage:~n", []),
     lists:foreach(fun({Mod, C, N}) ->
-                          ?CONSOLE("~*s : ~3s~n",
+                          ?CONSOLE("~*s : ~4s~n",
                                    [Width, Mod, percentage(C, N)])
                   end, Coverage),
-    ?CONSOLE("~n~*s : ~s~n", [Width, "Total", TotalCoverage]).
+    ?CONSOLE("~n~*s : ~4s~n", [Width, "Total", TotalCoverage]).
 
 cover_file(Module) ->
     filename:join([?EUNIT_DIR, atom_to_list(Module) ++ ".COVER.html"]).
