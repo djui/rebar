@@ -29,7 +29,8 @@
 -export([rm_rf/1,
          cp_r/2,
          mv/2,
-         delete_each/1]).
+         delete_each/1,
+         tempdir/0]).
 
 -include("rebar.hrl").
 
@@ -107,6 +108,13 @@ delete_each([File | Rest]) ->
         {error, Reason} ->
             ?ERROR("Failed to delete file ~s: ~p\n", [File, Reason]),
             ?ABORT
+    end.
+
+tempdir() ->
+    case os:type() of
+        {unix,  _} -> "/tmp";
+        {win32, _} -> os:getenv("TEMP");
+        _          -> ""
     end.
 
 %% ===================================================================

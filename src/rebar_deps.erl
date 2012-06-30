@@ -36,7 +36,8 @@
          'get-deps'/2,
          'update-deps'/2,
          'delete-deps'/2,
-         'list-deps'/2]).
+         'list-deps'/2,
+         'graph-deps'/2]).
 
 
 -record(dep, { dir,
@@ -169,6 +170,25 @@ setup_env(_Config) ->
             ?ABORT("Missing dependencies: ~p\n", [MissingDeps])
     end.
 
+'graph-deps'(Config, AppFile) ->
+    Deps     = rebar_config:get_local(Config, deps, []),
+    TempDir  = rebar_file_utils:tempdir(),
+    TempFile = "rebar_depsgraph" ++ os:getpid() ++ ".eterm",
+    TempPath = filename:join(TempDir, TempFile),
+    case find_deps(find, Deps) of
+        {AvailDeps, []} ->
+            AppName = rebar_app_utils:app_name(AppFile),
+            F = fun(Sibling) -> dump_branch(TempPath, AppName, Sibling) end,
+            lists:foreach(F, AvailDeps),
+            ok;
+        {_, MissingDeps} ->
+            ?ABORT("Missing dependencies: ~p\n", [MissingDeps])
+    end.
+
+dump_branch(TempPath, Node, {dep, _Path, Name, _Vsn, _CVS}) ->
+    Branch   = ?FMT("{~s,~s}.~n", [Node, Name]),
+    file:write_file(TempPath, Branch, [append]);
+dump_branch(_, _, _) -> ok.
 
 %% ===================================================================
 %% Internal functions

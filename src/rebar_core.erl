@@ -97,7 +97,10 @@ process_commands([Command | Rest], ParentConfig) ->
         end,
         %% Wipe out vsn cache to avoid invalid hits when
         %% dependencies are updated
-        ets:delete_all_objects(rebar_vsn_cache)
+        ets:delete_all_objects(rebar_vsn_cache),
+        %% Wipe out dependency cache to avoid invalid hits when
+        %% dependencies are updated
+        ets:delete_all_objects(rebar_dep_cache)
     catch
         throw:rebar_abort ->
             case rebar_config:get_global(keep_going, false) of
