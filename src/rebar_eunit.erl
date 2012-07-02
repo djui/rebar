@@ -140,9 +140,11 @@ eunit(Config, _AppFile) ->
     {ok, CoverLog} = cover_init(Config, ModuleBeamFiles),
 
     StatusBefore = status_before_eunit(),
-    EunitResult = perform_eunit(Config, FilteredModules),
-    perform_cover(Config, FilteredModules, SrcModules),
 
+    {EunitResult, Coverage} =
+        perform_eunit_cover(Config, FilteredModules),
+
+    cover_report(Config, Coverage, SrcModules),
     cover_close(CoverLog),
 
     case proplists:get_value(reset_after_eunit, get_eunit_opts(Config),
@@ -175,6 +177,19 @@ clean(_Config, _File) ->
 %% Internal functions
 %% ===================================================================
 
+%% Get value of property from config, either as a global (command
+%% line) property or from config file.  Global value has precedence
+%% and will be used if it exists.
+config_get(Config, Property, Default) ->
+    GlobalValue =
+        list_to_atom(rebar_config:get_global(Property, "undefined")),
+    case GlobalValue of
+        undefined ->
+            rebar_config:get(Config, Property, Default);
+        Value -> Value
+    end.
+
+
 eunit_dir() ->
     filename:join(rebar_utils:get_cwd(), ?EUNIT_DIR).
 
@@ -189,6 +204,51 @@ filtered_modules(Modules, []) ->
     Modules;
 filtered_modules(Modules, Suites) ->
     [M || M <- Modules, lists:member(M, Suites)].
+
+%% Determine if unit test (and coverage) should be run for all modules
+%% at once or one module at a time.
+eunit_run_mode(true,  exclusive)   -> multiple_runs;
+eunit_run_mode(false, exclusive)   -> single_run;
+eunit_run_mode(false, accumulated) -> single_run;
+eunit_run_mode(true,  accumulated) -> single_run;
+eunit_run_mode(_,     CoverType)   ->
+  ?ERROR("Illegal value of cover_type: ~p, should be one of ~p",
+         [CoverType, [exclusive, accumulated]]).
+
+
+perform_eunit_cover(Config, Modules) ->
+    RunCover = config_get(Config, cover_enabled, false),
+    CoverageType = config_get(Config, cover_type, accumulated),
+
+    EUnitCover = fun(Ms) ->
+                     lists:foreach(fun(M) ->
+                                       cover:reset(M)
+                                   end,
+                                   Ms),
+                     Result = perform_eunit(Config, Ms),
+                     ModCoverage = perform_cover(Config, Ms),
+                     {Result, ModCoverage}
+                 end,
+
+    case eunit_run_mode(RunCover, CoverageType) of
+        single_run ->
+            %% Run eunit for modules in one run
+            %% Coverage results are accumulated.
+            EUnitCover(Modules);
+        multiple_runs ->
+            %% Promote any non ok result as the accumulated result
+            EUnitResult = fun(ok, ok) -> ok;
+                             (ok, Res) -> Res;
+                             (Res, _) -> Res
+                          end,
+
+            %% Run eunit and cover in isolation for each module
+            lists:foldl(fun(Module, {AccResult, AccCoverage}) ->
+                                {R, C} = EUnitCover([Module]),
+                                {EUnitResult(R, AccResult),
+                                 C ++ AccCoverage}
+                        end, {ok, []}, Modules)
+    end.
 
 perform_eunit(Config, FilteredModules) ->
     EunitOpts = get_eunit_opts(Config),
@@ -257,21 +317,26 @@ is_lib_avail(DictKey, Mod, Hrl, Name) ->
             IsAvail
     end.
 
-perform_cover(Config, BeamFiles, SrcModules) ->
-    perform_cover(rebar_config:get(Config, cover_enabled, false),
-                  Config, BeamFiles, SrcModules).
+perform_cover(Config, BeamFiles) ->
+    case config_get(Config, cover_enabled, false) of
+        false -> ok;
+        true -> cover_analyze(BeamFiles)
+    end.
 
-perform_cover(false, _Config, _BeamFiles, _SrcModules) ->
+cover_analyze([]) ->
     ok;
-perform_cover(true, Config, BeamFiles, SrcModules) ->
-    cover_analyze(Config, BeamFiles, SrcModules).
-
-cover_analyze(_Config, [], _SrcModules) ->
-    ok;
-cover_analyze(Config, FilteredModules, SrcModules) ->
+cover_analyze(FilteredModules) ->
     %% Generate coverage info for all the cover-compiled modules
     Coverage = lists:flatten([cover_analyze_mod(M) || M <- FilteredModules]),
+    Coverage.
 
+cover_report(Config, Coverage, SrcModules) ->
+    CoverEnabled = config_get(Config, cover_enabled, false),
+    cover_report(CoverEnabled, Config, Coverage, SrcModules).
+
+cover_report(false, _Config, _Coverage, _SrcModules) ->
+    ok;
+cover_report(true, Config, Coverage, SrcModules) ->
     %% Write index of coverage info
     cover_write_index(lists:sort(Coverage), SrcModules),
 
@@ -285,11 +350,33 @@ cover_analyze(Config, FilteredModules, SrcModules) ->
     ?CONSOLE("Cover analysis: ~s\n", [Index]),
 
     %% Print coverage report, if configured
-    case rebar_config:get(Config, cover_print_enabled, false) of
+    case config_get(Config, cover_print_enabled, false) of
         true ->
             cover_print_coverage(lists:sort(Coverage));
         false ->
             ok
+    end,
+
+    %% Save coverage summary to file, if configured
+    case config_get(Config, cover_summary, false) of
+        false ->
+            ok;
+        true ->
+            SummaryFile = filename:join([rebar_utils:get_cwd(),
+                                         ?EUNIT_DIR,
+                                         "cover_summary.txt"]),
+            {Covered, TotalLines, _} =
+                calculate_coverage(Coverage),
+            case file:open(SummaryFile, [write]) of
+                {ok, S} ->
+                    io:format(S, "~w ~w~n", [Covered, TotalLines]),
+                    file:close(S),
+                    ?CONSOLE("Cover summary: ~s~n", [SummaryFile]);
+                {error, Rsn} ->
+                    ?CONSOLE("Could not write cover summary to '~s', "
+                             "reason: ~s~n",
+                             [SummaryFile, Rsn])
+            end
     end.
 
 cover_close(not_enabled) ->
@@ -344,7 +431,7 @@ cover_init(true, BeamFiles) ->
             OkOpen
     end;
 cover_init(Config, BeamFiles) ->
-    cover_init(rebar_config:get(Config, cover_enabled, false), BeamFiles).
+    cover_init(config_get(Config, cover_enabled, false), BeamFiles).
 
 cover_analyze_mod(Module) ->
     case cover:analyze(Module, coverage, module) of
@@ -407,15 +494,12 @@ calculate_coverage(Coverage) ->
     TotalLines = Covered + NotCovered,
     {Covered, TotalLines, TotalCoverage}.
 
+
 cover_write_index_section(_F, _SectionName, []) ->
     ok;
 cover_write_index_section(F, SectionName, Coverage) ->
-    %% Calculate total coverage %
-    {Covered, NotCovered} = lists:foldl(fun({_Mod, C, N}, {CAcc, NAcc}) ->
-                                                {CAcc + C, NAcc + N}
-                                        end, {0, 0}, Coverage),
-    TotalCoverage = percentage(Covered, NotCovered),
-    TotalLines = Covered + NotCovered,
+    {Covered, TotalLines, TotalCoverage} =
+        calculate_coverage(Coverage),
 
     %% Write the report
     ok = file:write(F, ?FMT("<body><h1>~s Summary</h1>\n", [SectionName])),
