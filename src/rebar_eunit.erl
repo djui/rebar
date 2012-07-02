@@ -157,7 +157,7 @@ eunit(Config, _AppFile) ->
         _ ->
             ?ERROR("One or more eunit tests failed.~n", []),
             case rebar_config:get_global(keep_going, false) of
-                false -> ?ABORT();
+                false -> ?ABORT;
                 true  -> ok
             end
     end,
