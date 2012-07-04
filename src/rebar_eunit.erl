@@ -320,7 +320,10 @@ is_lib_avail(DictKey, Mod, Hrl, Name) ->
 perform_cover(Config, BeamFiles) ->
     case config_get(Config, cover_enabled, false) of
         false -> ok;
-        true -> cover_analyze(BeamFiles)
+        true ->
+            Coverage = cover_analyze(BeamFiles),
+            cover_report_modules(Coverage),
+            Coverage
     end.
 
 cover_analyze([]) ->
@@ -339,12 +342,6 @@ cover_report(false, _Config, _Coverage, _SrcModules) ->
 cover_report(true, Config, Coverage, SrcModules) ->
     %% Write index of coverage info
     cover_write_index(lists:sort(Coverage), SrcModules),
-
-    %% Write coverage details for each file
-    lists:foreach(fun({M, _, _}) ->
-                          {ok, _} = cover:analyze_to_file(M, cover_file(M),
-                                                          [html])
-                  end, Coverage),
 
     Index = filename:join([rebar_utils:get_cwd(), ?EUNIT_DIR, "index.html"]),
     ?CONSOLE("Cover analysis: ~s\n", [Index]),
@@ -378,6 +375,15 @@ cover_report(true, Config, Coverage, SrcModules) ->
                              [SummaryFile, Rsn])
             end
     end.
+
+%% Write coverage details for each file
+cover_report_modules(Coverage) ->
+    lists:foreach(fun({M, _, _}) ->
+                          {ok, _} = cover:analyze_to_file(M, cover_file(M),
+                                                          [html])
+                  end, Coverage).
+
+
 
 cover_close(not_enabled) ->
     ok;
