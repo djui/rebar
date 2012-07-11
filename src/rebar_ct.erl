@@ -156,6 +156,7 @@ make_cmd(TestDir, Config) ->
                         LogDir,
                         filename:join(Cwd, TestDir),
                         get_extra_params(Config)]) ++
+                      get_ct_hook() ++
                       get_cover_config(Config, Cwd) ++
                       get_ct_config_file(TestDir) ++
                       get_config_file(TestDir) ++
@@ -175,6 +176,7 @@ make_cmd(TestDir, Config) ->
                         LogDir,
                         filename:join(Cwd, TestDir),
                         get_extra_params(Config)]) ++
+                      get_ct_hook() ++
                       SpecFlags ++ get_cover_config(Config, Cwd)
           end,
     RawLog = filename:join(LogDir, "raw.log"),
@@ -274,4 +276,11 @@ get_case() ->
             "";
         Case ->
             " -case " ++ Case
+     end.
+
+%% The surefire hook is non existent before R15B01.
+get_ct_hook() ->
+    case code:which(cth_surefire) of
+        non_existing -> "";
+        _            -> " -ct_hooks cth_surefire"
     end.
