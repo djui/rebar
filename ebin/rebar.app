@@ -36,6 +36,7 @@
               rebar_utils,
               rebar_xref,
               eunit_report_html,
+              eunit_report_surefire,
               getopt,
               mustache ]},
   {registered, []},
