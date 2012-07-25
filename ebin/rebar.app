@@ -35,6 +35,7 @@
               rebar_upgrade,
               rebar_utils,
               rebar_xref,
+              eunit_report_html,
               getopt,
               mustache ]},
   {registered, []},
