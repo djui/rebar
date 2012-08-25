@@ -407,7 +407,8 @@ escape_text(Text) -> escape_xml(lists:flatten(Text), [], false).
 
 %% ----------------------------------------------------------------------------
 %% Escape text for XML attribute nodes.
-%% Replace < with &lt;, > with &gt; and & with &amp;
+%% Replace < with &lt;, > with &gt; and & with &amp; and remove illegal
+%% characters.
 %% ----------------------------------------------------------------------------
 escape_attr(Text) when is_binary(Text) -> escape_attr(binary_to_list(Text));
 escape_attr(Text) -> escape_xml(lists:flatten(Text), [], true).
@@ -417,4 +418,13 @@ escape_xml([$< | Tail], Acc, ForAttr) -> escape_xml(Tail, [$;, $t, $l, $& | Acc]
 escape_xml([$> | Tail], Acc, ForAttr) -> escape_xml(Tail, [$;, $t, $g, $& | Acc], ForAttr);
 escape_xml([$& | Tail], Acc, ForAttr) -> escape_xml(Tail, [$;, $p, $m, $a, $& | Acc], ForAttr);
 escape_xml([$" | Tail], Acc, true) -> escape_xml(Tail, [$;, $t, $o, $u, $q, $& | Acc], true); % "
-escape_xml([Char | Tail], Acc, ForAttr) when is_integer(Char) -> escape_xml(Tail, [Char | Acc], ForAttr).
+escape_xml([Char | Tail], Acc, ForAttr) when is_integer(Char) ->
+    case is_legal(Char) of
+        true -> escape_xml(Tail, [Char | Acc], ForAttr);
+        false -> escape_xml(Tail, Acc, ForAttr)
+    end.
+
+is_legal(Char) when Char < 16#20 ->
+    %% Only these are legal in the range 0x00..0x1F
+    lists:member(Char, [9, 10, 13]);
+is_legal(_) -> true.
