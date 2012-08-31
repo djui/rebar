@@ -91,7 +91,14 @@ postprocess(_Config, _) ->
     end.
 
 compile(Config, AppFile) ->
-    'check-deps'(Config, AppFile).
+    case rebar_config:get_global(skip_deps, false) of
+        "true" ->
+            ?DEBUG("Not checking dependencies for 'compile'", []),
+            ok;
+        _ ->
+            ?DEBUG("Checking dependencies for 'compile'", []),
+            'check-deps'(Config, AppFile)
+    end.
 
 %% set REBAR_DEPS_DIR and ERL_LIBS environment variables
 setup_env(_Config) ->
