@@ -118,13 +118,20 @@ setup(OldVerPath, NewVerPath, NewName, NewVer, NameVer) ->
                          NewVer, NewName ++ ".rel"]),
     Dst = filename:join([".", NameVer ++ ".rel"]),
     {ok, _} = file:copy(Src, Dst),
+
+    %% Before messing with the code path, make sure we load all
+    %% of SASL (which includes systools that we will be using).
+    M = [list_to_atom(filename:basename(X, ".beam")) ||
+            X <- filelib:wildcard(code:lib_dir(sasl, ebin) ++ "/*.beam")],
+    [code:ensure_loaded(X) || X <- M],
+
     ok = code:add_pathsa(
            lists:append([
-                         filelib:wildcard(filename:join([NewVerPath,
-                                                         "lib", "*", "ebin"])),
                          filelib:wildcard(filename:join([OldVerPath,
                                                          "releases", "*"])),
                          filelib:wildcard(filename:join([OldVerPath,
+                                                         "lib", "*", "ebin"])),
+                         filelib:wildcard(filename:join([NewVerPath,
                                                          "lib", "*", "ebin"]))
                         ])).
 
