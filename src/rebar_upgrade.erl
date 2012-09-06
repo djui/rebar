@@ -138,26 +138,36 @@ setup(OldVerPath, NewVerPath, NewName, NewVer, NameVer) ->
 run_systools(NewVer, Name) ->
     Opts = [silent],
     NameList = [Name],
-    case systools:make_relup(NewVer, NameList, NameList, Opts) of
-        {error, _, Msg} ->
-            ?ABORT("Systools [systools:make_relup/4] aborted with: ~p~n",
-                   [Msg]);
-        _ ->
-            ?DEBUG("Relup created~n", []),
-            case systools:make_script(NewVer, Opts) of
-                {error, _, Msg1} ->
-                    ?ABORT("Systools [systools:make_script/2] "
-                           "aborted with: ~p~n", [Msg1]);
+
+    Relup = rebar_config:get_global('relup', generate),
+    case Relup of
+        generate ->
+            case systools:make_relup(NewVer, NameList, NameList, Opts) of
+                {error, _, Msg} ->
+                    ?ABORT("Systools [systools:make_relup/4] aborted with: ~p~n",
+                           [Msg]);
                 _ ->
-                    ?DEBUG("Script created~n", []),
-                    case systools:make_tar(NewVer, Opts) of
-                        {error, _, Msg2} ->
-                            ?ABORT("Systools [systools:make_tar/2] "
-                                   "aborted with: ~p~n", [Msg2]);
-                        _ ->
-                            ?DEBUG("Tarball created~n", []),
-                            ok
-                    end
+                    ?DEBUG("Relup created~n", [])
+            end;
+        _ ->
+            {ok, _} = file:copy(Relup, "relup"),
+            ?DEBUG("User provided relup: ~p~n", [Relup])
+    end,
+    case systools:make_script(NewVer, Opts) of
+        {error, _, Msg1} ->
+            ?ABORT("Systools [systools:make_script/2] "
+                   "aborted with: ~p~n", [Msg1]);
+        _ ->
+            ?DEBUG("Script created~n", []),
+            TarOpts = Opts ++ [X || X <- [{erts, code:root_dir()}],
+                               rebar_config:get_global(runtime, "0") == "1"],
+            case systools:make_tar(NewVer, TarOpts) of
+                {error, _, Msg2} ->
+                    ?ABORT("Systools [systools:make_tar/2] "
+                           "aborted with: ~p~n", [Msg2]);
+                _ ->
+                    ?DEBUG("Tarball created~n", []),
+                    ok
             end
     end.
 
@@ -203,9 +213,9 @@ make_tar(NameVer, NewVer, NewName) ->
         _ ->
             ok
     end,
+    {ok, Filenames} = file:list_dir("."),
     {ok, Tar} = erl_tar:open(Absname, [write, compressed]),
-    ok = erl_tar:add(Tar, "lib", []),
-    ok = erl_tar:add(Tar, "releases", []),
+    [ok = erl_tar:add(Tar, X, []) || X <- Filenames],
     ok = erl_tar:close(Tar),
     ok = file:set_cwd(Cwd),
     ?CONSOLE("~s upgrade package created~n", [NameVer]).

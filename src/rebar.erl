@@ -275,7 +275,7 @@ list-deps                            List dependencies
 generate    [dump_spec=0/1]          Build release with reltool
 overlay                              Run reltool overlays only
 
-generate-upgrade  previous_release=path  Build an upgrade package
+generate-upgrade  previous_release=path [relup=abspath runtime=0/1] Build an upgrade package
 
 generate-appups   previous_release=path  Generate appup files
 
