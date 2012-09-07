@@ -82,12 +82,19 @@ preprocess(Config, _) ->
 
 
 postprocess(_Config, _) ->
-    case erlang:get(?MODULE) of
-        undefined ->
+    case rebar_config:get_global(skip_deps, false) of
+        "true" ->
+            ?DEBUG("Not checking dependencies for 'get-deps'\n", []),
             {ok, []};
-        Dirs ->
-            erlang:erase(?MODULE),
-            {ok, Dirs}
+        _ ->
+            ?DEBUG("Checking dependencies for 'get-deps'\n", []),
+            case erlang:get(?MODULE) of
+                undefined ->
+                    {ok, []};
+                Dirs ->
+                    erlang:erase(?MODULE),
+                    {ok, Dirs}
+            end
     end.
 
 compile(Config, AppFile) ->
