@@ -79,9 +79,11 @@ eunit(Config, _AppFile) ->
     true = code:add_pathz(ebin_dir()),
 
     %% Obtain all the test modules for inclusion in the compile stage.
-    %% Notice: this could also be achieved with the following
-    %% rebar.config option: {eunit_compile_opts, [{src_dirs, ["test"]}]}
-    TestErls = rebar_utils:find_files("test", ".*\\.erl\$"),
+    CompileOpts = rebar_config:get(Config, eunit_compile_opts, []),
+    SrcDirs = proplists:get_value(src_dirs, CompileOpts, []) -- ["src", "test"],
+    TestErls = lists:flatmap(fun (Dir) ->
+                                  rebar_utils:find_files(Dir, ".*\\.erl\$")
+                             end, ["test"|SrcDirs]),
 
     %% Copy source files to eunit dir for cover in case they are not directly
     %% in src but in a subdirectory of src. Cover only looks in cwd and ../src
