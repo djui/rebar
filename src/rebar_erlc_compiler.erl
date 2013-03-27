@@ -134,7 +134,7 @@ doterl_compile(Config, OutDir, MoreSources) ->
     %% Split RestErls so that parse_transforms and behaviours are instead added
     %% to erl_first_files, parse transforms first.
     %% This should probably be somewhat combined with inspect_epp
-    [ParseTransforms, Behaviours, OtherErls] =
+    [ParseTransforms, Behaviours, OtherErls0] =
         lists:foldl(fun(F, [A, B, C]) ->
                             case compile_priority(F) of
                                 parse_transform ->
@@ -147,6 +147,9 @@ doterl_compile(Config, OutDir, MoreSources) ->
                                     [A, B, [F | C]]
                             end
                     end, [[], [], []], RestErls),
+
+    %% Remove duplicates
+    OtherErls = lists:usort(OtherErls0),
 
     NewFirstErls = FirstErls ++ ParseTransforms ++ Behaviours,
 
