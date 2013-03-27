@@ -106,11 +106,10 @@ eunit(Config, _AppFile) ->
                             false -> Acc
                         end
                 end,
+    Erls = lists:usort(TestErls ++ SrcErls),
+    ok = rebar_file_utils:delete_each(lists:foldl(ToCleanUp, [], Erls)),
 
-    ok = rebar_file_utils:delete_each(lists:foldl(ToCleanUp, [], TestErls)),
-    ok = rebar_file_utils:delete_each(lists:foldl(ToCleanUp, [], SrcErls)),
-
-    TargetFiles = exclude(Config, SrcErls ++ TestErls),
+    TargetFiles = exclude(Config, Erls),
     ok = rebar_file_utils:cp_r(TargetFiles, ?EUNIT_DIR),
 
     %% Compile erlang code to ?EUNIT_DIR, using a tweaked config
